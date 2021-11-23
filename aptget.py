@@ -93,6 +93,7 @@ class AptGet(dotbot.Plugin):
         mfull = rfull.fullmatch(source)
         if mppa is not None:
             sourcesList.add("deb", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename, ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
+            sourcesList.add("deb-src", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename, ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list", disabled=True)
             return True
         elif mfull is not None:
             if mfull.group('options') is None:
