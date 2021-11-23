@@ -1,6 +1,8 @@
 # coding=utf-8
 import apt
+from aptsources.sourceslist import SourcesList, SourceEntry
 import os
+import re
 import subprocess
 
 import dotbot
@@ -30,8 +32,10 @@ class AptGet(dotbot.Plugin):
         success = True
         cleaned_packages = self._dispatch_names_and_sources(packages)
         if cleaned_packages['sources']:
+            sourcesList = SourcesList()
             for source in cleaned_packages['sources']:
-                success &= self._add_ppa(source)
+                self._add_source(sourcesList, source)
+            sourcesList.save()
         self._apt_cache._list.read_main_list()
         self._apt_cache.update()
         self._apt_cache.open()  # NB: utilize updated cache http://apt.alioth.debian.org/python-apt-doc/library/apt.cache.html#apt.cache.Cache.update
@@ -71,28 +75,37 @@ class AptGet(dotbot.Plugin):
                     cleaned_dict['packages'][pkg_name] = False
         return cleaned_dict
 
-    def _add_ppa(self, source):
+    def _get_codename(self):
+        with open("/etc/os-release") as f:
+            m = map(lambda l: re.match(r"VERSION_CODENAME=(.*)", l), f)
+            return list(filter(lambda l: l is not None, m))[0].group(1)
+
+    def _add_source(self, sourcesList, source):
         '''
         Add PPA source by passing it to a shell-command "add-apt-repository" via subprocess.
         Reimplementing "add-apt-repository" script logic is too overwhelming for our purpose.
         Returns True if successfully added PPA source, else False.
         '''
-        success = False
-        if 'ppa:' not in source:
-            source = 'ppa:%s' % source
-        # NB: Trying to avoid subprocess.Popen(), as this command is pretty simple
-        cmd = ['add-apt-repository', '--yes', source]
-        try:
-            out = subprocess.check_output(cmd)
-            self._log.info('Successfully added PPA "%s"' % source)
-            success = True
-        except subprocess.CalledProcessError as e:
-            self._log.lowinfo('PPA "%s": %s' % (source, e.output))
-            success = False
-        except Exception as e:
-            self._log.lowinfo('Failed to add PPA "%s": %s' % (source, e))
-            success = False
-        return success
+        rppa = re.compile(r"ppa:([0-9a-zA-Z]+)/([0-9a-zA-Z])")
+        rfull = re.compile(r"(?P<type>deb(?:-src)?) (?:[(?P<options>.*)\] )?(?P<uri>(?P<protocol>(?:(?:mirror\+)?(?P<local>file|cdrom|copy)|(?P<remote>http|https|ftp|ssh))):(?(remote)//((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,6}))/[a-zA-Z0-1-_\./]+) (?P<suite>[a-z/]+)(?:(?<!/) (?P<components>[a-z]+(?: [a-z]+)*))")
+
+        mppa = rppa.fullmatch(source)
+        mfull = rfull.fullmatch(source)
+        if mppa is not None:
+            sourcesList.add("deb", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename, ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
+            return True
+        elif mfull is not None:
+            if mfull.group('options') is None:
+                # python-apt isn't able to handle options
+                return False
+            if mfull.group('components') is not None:
+                components = mfull.group('components').split(' ')
+            else:
+                components = list()
+            sourcesList.add(mfull.group('type'), mfull.group('uri'), mfull.group('suite'), components, file="/etc/apt/sources.list.d/dotbot-managed.list")
+            return True
+        else:
+            return False
 
     def _mark_package_install_upgrade(self, pkg_name, upgrade):
         success = False
