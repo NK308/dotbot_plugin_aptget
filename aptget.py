@@ -3,6 +3,7 @@ import apt
 from aptsources.sourceslist import SourcesList, SourceEntry
 import os
 import re
+import sys
 import subprocess
 
 import dotbot
@@ -86,17 +87,18 @@ class AptGet(dotbot.Plugin):
         Reimplementing "add-apt-repository" script logic is too overwhelming for our purpose.
         Returns True if successfully added PPA source, else False.
         '''
-        rppa = re.compile(r"ppa:([0-9a-zA-Z]+)/([0-9a-zA-Z])")
-        rfull = re.compile(r"(?P<type>deb(?:-src)?) (?:[(?P<options>.*)\] )?(?P<uri>(?P<protocol>(?:(?:mirror\+)?(?P<local>file|cdrom|copy)|(?P<remote>http|https|ftp|ssh))):(?(remote)//((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,6}))/[a-zA-Z0-1-_\./]+) (?P<suite>[a-z/]+)(?:(?<!/) (?P<components>[a-z]+(?: [a-z]+)*))")
+        rppa = re.compile(r"ppa:([0-9a-zA-Z_-]+)/([0-9a-zA-Z_-]+)")
+        rfull = re.compile(r"(?P<type>deb(?:-src)?) (?:\[(?P<options>.*)\] )?(?P<uri>(?P<protocol>(?:(?:mirror\+)?(?P<local>file|cdrom|copy)|(?P<remote>http|https|ftp|ssh))):(?(remote)//((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,6}))/[a-zA-Z0-9-_\./]+) (?P<suite>[a-z/]+)(?:(?<!/) (?P<components>[a-z]+(?: [a-z]+)*))")
 
         mppa = rppa.fullmatch(source)
         mfull = rfull.fullmatch(source)
         if mppa is not None:
-            sourcesList.add("deb", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename, ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
-            sourcesList.add("deb-src", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename, ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list", disabled=True)
+            sourcesList.add("deb", f"http://ppa.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename(), ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
+            sourcesList.add("#deb-src", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename(), ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
+            self._log.info("ppa added")
             return True
         elif mfull is not None:
-            if mfull.group('options') is None:
+            if mfull.group('options') is not None:
                 # python-apt isn't able to handle options
                 return False
             if mfull.group('components') is not None:
@@ -104,8 +106,10 @@ class AptGet(dotbot.Plugin):
             else:
                 components = list()
             sourcesList.add(mfull.group('type'), mfull.group('uri'), mfull.group('suite'), components, file="/etc/apt/sources.list.d/dotbot-managed.list")
+            self._log.info("full source added")
             return True
         else:
+            self._log.error("invalid ppa not added")
             return False
 
     def _mark_package_install_upgrade(self, pkg_name, upgrade):
