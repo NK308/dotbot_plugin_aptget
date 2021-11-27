@@ -87,14 +87,16 @@ class AptGet(dotbot.Plugin):
         Reimplementing "add-apt-repository" script logic is too overwhelming for our purpose.
         Returns True if successfully added PPA source, else False.
         '''
-        rppa = re.compile(r"ppa:([0-9a-zA-Z_-]+)/([0-9a-zA-Z_-]+)")
-        rfull = re.compile(r"(?P<type>deb(?:-src)?) (?:\[(?P<options>.*)\] )?(?P<uri>(?P<protocol>(?:(?:mirror\+)?(?P<local>file|cdrom|copy)|(?P<remote>http|https|ftp|ssh))):(?(remote)//((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,6}))/[a-zA-Z0-9-_\./]+) (?P<suite>[a-z/]+)(?:(?<!/) (?P<components>[a-z]+(?: [a-z]+)*))")
+        rppa = re.compile(r"^ppa:([0-9a-zA-Z_-]+)/([0-9a-zA-Z_-]+)$")
+        rfull = re.compile(r"^(?P<type>deb(?:-src)?) (?:\[(?P<options>.*)\] )?(?P<uri>(?P<protocol>(?:(?:mirror\+)?(?P<local>file|cdrom|copy)|(?P<remote>http|https|ftp|ssh))):(?(remote)//((?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,6}))/[a-zA-Z0-9-_\./]+) (?P<suite>[a-z/]+)(?:(?<!/) (?P<components>[a-z]+(?: [a-z]+)*))$")
 
-        mppa = rppa.fullmatch(source)
-        mfull = rfull.fullmatch(source)
+        mppa = rppa.match(source)
+        mfull = rfull.match(source)
         if mppa is not None:
-            sourcesList.add("deb", f"http://ppa.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename(), ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
-            sourcesList.add("#deb-src", f"http://deb.launchpad.net/{mppa.group(1)}/{mppa.group(2)}/ubuntu", self._get_codename(), ["main"], file=f"/etc/apt/sources.list.d/{mppa.group(1)}-{mppa.group(2)}.list")
+            username = mppa.group(1)
+            reponame = mppa.group(2)
+            sourcesList.add("deb", "http://ppa.launchpad.net/{}/{}/ubuntu".format(username, reponame), self._get_codename(), ["main"], file="/etc/apt/sources.list.d/{}-{}.list".format(username, reponame))
+            sourcesList.add("#deb-src", "http://deb.launchpad.net/{}/{}/ubuntu".format(username, reponame), self._get_codename(), ["main"], file="/etc/apt/sources.list.d/{}-{}.list".format(username, reponame))
             self._log.info("ppa added")
             return True
         elif mfull is not None:
