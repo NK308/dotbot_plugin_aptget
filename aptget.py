@@ -60,7 +60,7 @@ class AptGet(dotbot.Plugin):
             for pkg_name in packages:
                 cleaned_dict['packages'][pkg_name] = False
         elif isinstance(packages, dict):
-                new_syntax = False
+            new_syntax = False
             for key, value in packages.items():
                 if key == "packages" and isinstance(value, list):
                     continue
