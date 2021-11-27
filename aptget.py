@@ -65,15 +65,33 @@ class AptGet(dotbot.Plugin):
             for pkg_name in packages:
                 cleaned_dict['packages'][pkg_name] = False
         elif isinstance(packages, dict):
-            for pkg_name, pkg_opts in packages.items():
-                if isinstance(pkg_opts, dict):
-                    if 'ppa_source' in pkg_opts.keys():
-                        cleaned_dict['sources'].append(pkg_opts['ppa_source'])
-                    cleaned_dict['packages'][pkg_name] = pkg_opts.get('upgrade', False)
-                else:
-                    if pkg_opts:
-                        cleaned_dict['sources'].append(pkg_opts)
-                    cleaned_dict['packages'][pkg_name] = False
+            new_syntax = False
+            for key, value in packages.items():
+                if key == "packages" and isinstance(value, list):
+                    continue
+                if key == "sources" and isinstance(value, list):
+                    continue
+                if key == "update" and isinstance(value, bool):
+                    continue
+                break
+            else:
+                new_syntax = True
+            if new_syntax:
+                #new syntax, with different dicts for 
+                cleaned_dict["sources"] = packages.get("sources", dict())
+                for paket in packages.get("packages", list()):
+                    cleaned_dict["packages"][paket] = packages.get("update", False)
+            else:
+                #old syntax, with sources as package options
+                for pkg_name, pkg_opts in packages.items():
+                    if isinstance(pkg_opts, dict):
+                        if 'ppa_source' in pkg_opts.keys():
+                            cleaned_dict['sources'].append(pkg_opts['ppa_source'])
+                        cleaned_dict['packages'][pkg_name] = pkg_opts.get('upgrade', False)
+                    else:
+                        if pkg_opts:
+                            cleaned_dict['sources'].append(pkg_opts)
+                        cleaned_dict['packages'][pkg_name] = False
         return cleaned_dict
 
     def _get_codename(self):
